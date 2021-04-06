@@ -26,10 +26,15 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
-    SupFlags = #{strategy => one_for_all,
-                 intensity => 0,
-                 period => 1},
-    ChildSpecs = [],
+    SupFlags = #{strategy => one_for_one,
+                 intensity => 10,
+                 period => 5},
+    ChildSpecs = [
+        #{
+            id => ninjatrace_sensor_sup,
+            start => {ninjatrace_sensor_sup, start_link, []}
+        }
+        ],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% internal functions

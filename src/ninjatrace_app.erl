@@ -7,7 +7,10 @@
 
 -behaviour(application).
 
--export([start/2, stop/1]).
+-export([start/2, stop/1, start/0]).
+
+start() ->
+    ninjatrace_sup:start_link().
 
 start(_StartType, _StartArgs) ->
     ninjatrace_sup:start_link().
