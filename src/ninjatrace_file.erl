@@ -10,7 +10,7 @@
 -author("bnjm").
 
 %% API
--export([list_dir/1]).
+-export([list_dir/1, stream_file/3]).
 
 %% Returns a list absolute paths to all directories in Dir
 -spec(list_dir(string()) -> [string()]).
@@ -21,7 +21,23 @@ list_dir(Dir) when is_list(Dir) ->
     {error, Reason} -> throw("Can not list in '" ++ BaseDir ++ "' due to: '" ++ erlang:atom_to_list(Reason) ++ "'")
   end.
 
+-spec(stream_file(string(), read | line, fun((list()) -> any())) -> pid()).
+stream_file(Path, Mode, CallbackFn) ->
+  {ok, IoDevice} = file:open(Path, read),
+  spawn(fun() -> do_read(IoDevice, Mode, CallbackFn) end).
+
 %% private
+do_read(IoDevice, Mode, CallbackFn) ->
+  case do_read_mode(IoDevice, Mode) of
+    {ok, Content} ->
+      CallbackFn(Content),
+      do_read(IoDevice, Mode, CallbackFn);
+    eof -> file:close(IoDevice)
+  end.
+
+do_read_mode(IoDevice, read) -> file:read(IoDevice, 1024);
+do_read_mode(IoDevice, line) -> file:read_line(IoDevice).
+
 -spec(ends_with_slash(string()) -> boolean()).
 ends_with_slash(Str) ->
   "/" =:= string:find(Str, "/", trailing).
