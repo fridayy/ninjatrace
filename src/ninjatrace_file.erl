@@ -26,11 +26,13 @@ stream_file(Path, Mode, CallbackFn) ->
   {ok, IoDevice} = file:open(Path, read),
   spawn(fun() ->
     process_flag(trap_exit, true),
-    spawn_link(fun() -> do_read(IoDevice, Mode, CallbackFn) end),
+    Linked = spawn_link(fun() -> do_read(IoDevice, Mode, CallbackFn) end),
+    io:format("Reading Process ID = ~p",[Linked]),
     receive
       {'EXIT', _From, _Reason} ->
         % close the file and ends this process and its linked child
-        file:close(IoDevice)
+        file:close(IoDevice),
+        exit(normal)
     end
         end).
 
