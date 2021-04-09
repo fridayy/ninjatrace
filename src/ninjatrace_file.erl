@@ -10,7 +10,7 @@
 -author("bnjm").
 
 %% API
--export([list_dir/1, stream_file/3]).
+-export([list_dir/1, stream_file/3, stream_close/1]).
 
 %% Returns a list absolute paths to all directories in Dir
 -spec(list_dir(string()) -> [string()]).
@@ -24,7 +24,20 @@ list_dir(Dir) when is_list(Dir) ->
 -spec(stream_file(string(), read | line, fun((list()) -> any())) -> pid()).
 stream_file(Path, Mode, CallbackFn) ->
   {ok, IoDevice} = file:open(Path, read),
-  spawn(fun() -> do_read(IoDevice, Mode, CallbackFn) end).
+  spawn(fun() ->
+    process_flag(trap_exit, true),
+    spawn_link(fun() -> do_read(IoDevice, Mode, CallbackFn) end),
+    receive
+      {'EXIT', _From, _Reason} ->
+        % close the file and ends this process and its linked child
+        file:close(IoDevice)
+    end
+        end).
+
+-spec(stream_close(pid()) -> ok).
+stream_close(Pid) ->
+  exit(Pid, close),
+  ok.
 
 %% private
 do_read(IoDevice, Mode, CallbackFn) ->
