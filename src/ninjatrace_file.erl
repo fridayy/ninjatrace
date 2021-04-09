@@ -10,7 +10,7 @@
 -author("bnjm").
 
 %% API
--export([list_dir/1, stream_file/3, stream_close/1]).
+-export([list_dir/1, read_every/3, close/1]).
 
 %% Returns a list absolute paths to all directories in Dir
 -spec(list_dir(string()) -> [string()]).
@@ -21,32 +21,29 @@ list_dir(Dir) when is_list(Dir) ->
     {error, Reason} -> throw("Can not list in '" ++ BaseDir ++ "' due to: '" ++ erlang:atom_to_list(Reason) ++ "'")
   end.
 
--spec(stream_file(string(), read | line, fun((list()) -> any())) -> pid()).
-stream_file(Path, Mode, CallbackFn) ->
-  {ok, IoDevice} = file:open(Path, read),
+-spec(read_every(string(), integer(), fun()) -> pid()).
+read_every(Path, Interval, Callback) ->
   spawn(fun() ->
-    process_flag(trap_exit, true),
-    Linked = spawn_link(fun() -> do_read(IoDevice, Mode, CallbackFn) end),
-    io:format("Reading Process ID = ~p~n",[Linked]),
-    receive
-      {'EXIT', _From, _Reason} ->
-        % close the file and ends this process and its linked child
-        exit(Linked, normal),
-        file:close(IoDevice)
-    end
+    {ok, Dev} = file:open(Path, read),
+    read_every_loop(Dev, Interval, Callback)
         end).
 
--spec(stream_close(pid()) -> ok).
-stream_close(Pid) ->
-  exit(Pid, close),
+read_every_loop(Device, Interval, Callback) ->
+  receive
+    close -> file:close(Device)
+  after Interval ->
+    do_read(Device, read, Callback),
+    read_every_loop(Device, Interval, Callback)
+  end.
+
+close(Pid) ->
+  Pid ! close,
   ok.
 
 %% private
 do_read(IoDevice, Mode, CallbackFn) ->
   case do_read_mode(IoDevice, Mode) of
-    {ok, Content} ->
-      CallbackFn(Content),
-      do_read(IoDevice, Mode, CallbackFn);
+    {ok, Content} -> CallbackFn(Content);
     eof -> file:close(IoDevice)
   end.
 
