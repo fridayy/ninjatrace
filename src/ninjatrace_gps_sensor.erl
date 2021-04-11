@@ -35,8 +35,7 @@ pos_mode := maybe(no_fix | auto_fix | diff_fix)
 -define(SERVER, ?MODULE).
 
 -record(state, {
-  latitude :: number(),
-  longitude :: number()
+  subscriber :: [pid()]
 }).
 
 %% API
@@ -58,7 +57,9 @@ init([]) ->
         end
                                                          end),
       ninjatrace_logger:info(?MODULE, "gps sensor started"),
-      {ok, #state{}}
+      {ok, #state{
+        subscriber = []
+      }}
   end.
 
 handle_call(_Request, _From, State = #state{}) ->
@@ -67,13 +68,11 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({nmea, Message}, _State) ->
-  {Lat, Lng} = to_lat_lon(Message),
-  ninjatrace_logger:info(?MODULE, "Lat = ~p , Lng = ~p", [Lat, Lng]),
-  {noreply, #state{
-    latitude = Lat,
-    longitude = Lng
-  }};
+handle_info({nmea, Message}, #state{subscriber =  Subs} = State) ->
+  lists:foreach(fun(Pid) ->
+                Pid ! to_lat_lon(Message)
+                end, Subs),
+  {noreply, State};
 
 handle_info(Info, State = #state{}) ->
   ninjatrace_logger:info(?MODULE, "Unexpected Info: ~p", [Info]),
