@@ -11,9 +11,45 @@
 
 -define(TEMP_DIR, "/tmp/").
 
+
 -include_lib("eunit/include/eunit.hrl").
 
+%% read line every section
+read_line_every_test_() ->
+  {setup,
+    fun read_line_every_fixture/0,
+    fun read_line_every_teardown/1,
+    fun read_line_every_exercise/1
+  }.
 
+read_line_every_fixture() ->
+  {ok, Dir} = file:get_cwd(),
+  ?debugFmt("cwd=~s", [Dir]),
+  Dir ++ "/test/ninjatrace_file_SUITE_data/some_file.txt".
+
+read_line_every_teardown(_Path) ->
+  noop.
+
+read_line_every_exercise(Path) ->
+  Self = self(),
+  ?debugFmt("Path=~s", [Path]),
+  Pid = ninjatrace_file:read_line_every(Path, 10, fun(C) ->
+                                              Self ! {line, C}
+                                             end),
+  Result = content_gatherer(0, 3, []),
+  [
+    ?_assertEqual([{3,<<"d\n">>},{2,<<"c\n">>},{1,<<"b\n">>},{0,<<"a\n">>}], Result)
+  ].
+
+content_gatherer(Current, Expectation, Items) ->
+  receive
+    {line, Line} when Current =/= Expectation -> content_gatherer(Current + 1, Expectation, [{Current, Line} | Items]);
+    {line, Line} -> [{Current, Line} | Items];
+    Any -> unexpected_message
+    after 100 -> timeout
+  end.
+
+%% list dir test section
 list_dir_test_() ->
   {setup,
     fun dir_test_fixture/0,
@@ -43,6 +79,3 @@ dir_test_exercise(Path) ->
 
 dir_test_teardown(Path) ->
   file:del_dir_r(Path).
-
-tmp_exists() ->
-  filelib:is_dir(?TEMP_DIR).

@@ -19,6 +19,9 @@ info(Module, Format, Args) ->
   io_format_log(info, Module, Format,Args).
 
 io_format_log(Level, Module, Format, Args) ->
-  ModuleAttached = [atom_to_list(Module) | Args],
+  {H, M, S} = erlang:time(),
+  Time = erlang:integer_to_list(H) ++ ":" ++ erlang:integer_to_list(M) ++ ":" ++ erlang:integer_to_list(S),
+  TimeAttached = [Time | Args],
+  ModuleAttached = [atom_to_list(Module) | TimeAttached],
   LevelAttached = [atom_to_list(Level) | ModuleAttached],
-  io:format("[~p][~p] " ++ Format ++ "~n", LevelAttached).
+  io:format("[~s][~p][~p] " ++ Format ++ "~n", LevelAttached).

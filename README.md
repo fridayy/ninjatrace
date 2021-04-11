@@ -12,6 +12,10 @@ of the `uucp` (or corresponding) group.
 
 `$ sudo gpasswd -a USER uucp`
 
+**Quectel L80-M39 Settings**
+The following stty serial settings must be provided for this device:
+ `$ stty -F /dev/ttyS0 raw speed 9600`
+
 Build
 -----
 

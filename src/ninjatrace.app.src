@@ -7,11 +7,8 @@
    [kernel,
     stdlib
    ]},
-  {env,[
-   {cpu_temp_path, "/sys/class/thermal/thermal_zone0/temp"}
-  ]},
+  {env,[]},
   {modules, []},
-
   {licenses, ["Apache 2.0"]},
   {links, []}
  ]}.

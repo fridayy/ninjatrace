@@ -9,11 +9,19 @@
 -module(ninjatrace_file).
 -author("bnjm").
 
-%% API
--export([list_dir/1, read_every/3, close/1]).
+-ifdef(TEST).
+-compile(export_all).
+-endif.
 
-%% Returns a list absolute paths to all directories in Dir
--spec(list_dir(string()) -> [string()]).
+%% API
+-export([list_dir/1, read_line_every/3, read_line_every/4, close/1, is_device/1]).
+
+-type path() :: string().
+-type file_read_pid() :: pid().
+-type interval_ms() :: 1..10000.
+
+%%  @doc Returns a list absolute paths to all directories in Dir
+-spec(list_dir(path()) -> [path()]).
 list_dir(Dir) when is_list(Dir) ->
   BaseDir = sanitize_dir_str(Dir),
   case file:list_dir(BaseDir) of
@@ -21,34 +29,53 @@ list_dir(Dir) when is_list(Dir) ->
     {error, Reason} -> throw("Can not list in '" ++ BaseDir ++ "' due to: '" ++ erlang:atom_to_list(Reason) ++ "'")
   end.
 
--spec(read_every(string(), integer(), fun()) -> pid()).
-read_every(Path, Interval, Callback) ->
-  spawn(fun() ->
-    {ok, Dev} = file:open(Path, read),
-    read_every_loop(Dev, Interval, Callback)
-        end).
+%% @doc Reads the contents from the given file every n-milliseconds (interval) and invokes the given callback.
+%% Returns the pid of the handling process which should be used to close the file resource and stop the reading process.
+%% see: close()
+%% TODO: reduce arity, add callbacks via tuple (on_next, on_error, on_complete)
+%% TODO: this will ease fail fast for the gen_server using this
+-spec(read_line_every(path(), interval_ms(), integer(), function()) -> file_read_pid()).
+read_line_every(Path, Interval, ReadAhead, Callback) ->
+  spawn(
+    fun() ->
+      {ok, Dev} = file:open(Path, [read, binary, raw, {read_ahead, ReadAhead}]),
+      read_every_loop(Dev, Interval, Callback)
+    end
+  ).
 
-read_every_loop(Device, Interval, Callback) ->
-  receive
-    close -> file:close(Device)
-  after Interval ->
-    do_read(Device, read, Callback),
-    read_every_loop(Device, Interval, Callback)
-  end.
+-spec(read_line_every(path(), interval_ms(), function()) -> file_read_pid()).
+read_line_every(Path, Interval, Callback) ->
+  read_line_every(Path, Interval, 128, Callback).
 
+%% @doc Closes the file reading process.
+-spec(close(file_read_pid()) -> ok).
 close(Pid) ->
   Pid ! close,
   ok.
 
-%% private
-do_read(IoDevice, Mode, CallbackFn) ->
-  case do_read_mode(IoDevice, Mode) of
-    {ok, Content} -> CallbackFn(Content);
-    eof -> file:close(IoDevice)
+-spec(is_device(path()) -> boolean()).
+is_device(Path) ->
+  case file:read_file_info(Path) of
+    {ok, Info} ->
+      erlang:element(3, Info) =:= device;
+    _Else -> false
   end.
 
-do_read_mode(IoDevice, read) -> file:read(IoDevice, 1024);
-do_read_mode(IoDevice, line) -> file:read_line(IoDevice).
+%% private
+read_every_loop(Device, Interval, Callback) ->
+  receive
+    close -> file:close(Device)
+  after Interval ->
+    do_read_line(Device, Callback),
+    read_every_loop(Device, Interval, Callback)
+  end.
+
+do_read_line(IoDevice, CallbackFn) ->
+  case file:read_line(IoDevice) of
+    {ok, Content} -> CallbackFn(Content);
+    _Any -> file:close(IoDevice) % TODO: determine behaviour (einval? eof?)
+  end.
+
 
 -spec(ends_with_slash(string()) -> boolean()).
 ends_with_slash(Str) ->
