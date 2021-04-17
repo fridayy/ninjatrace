@@ -10,9 +10,9 @@
 -export([start/2, stop/1, start/0]).
 
 start() ->
-    StartCowboy = application:get_env(ninjatrace, server, false),
-    init_cowboy(StartCowboy),
-    ninjatrace_sup:start_link().
+    Type = application:get_env(ninjatrace, type, device),
+    init_cowboy(Type),
+    ninjatrace_sup:start_link(Type).
 
 start(_StartType, _StartArgs) ->
     start().
@@ -21,7 +21,7 @@ stop(_State) ->
     ok.
 
 %% internal functions
-init_cowboy(true) ->
+init_cowboy(server) ->
     %% TODO: dynamic routes would be nice for each device
     %% https://ninenines.eu/docs/en/cowboy/2.6/guide/routing/
     application:ensure_all_started(cowboy),
@@ -37,5 +37,6 @@ init_cowboy(true) ->
         #{env => #{dispatch => Dispatch}}
     );
 
-init_cowboy(false) ->
+%% no need to start cowboy on devices
+init_cowboy(device) ->
     noop.

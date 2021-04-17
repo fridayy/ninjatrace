@@ -2,7 +2,7 @@ ninjatrace
 =====
 
 _ninjatrace_ will be a live tracing system and drivers logbook of a GPS enhanced Raspberry Pi written in erlang. 
-As this is mainly a (learning) playground for distributed erlang and OTP the architecture is far off from ideal and definitely "won't scale". :)
+As this is mainly a (learning) playground for distributed erlang and OTP the architecture and implementation is far off from ideal and definitely "won't scale". :)
 
 RaspberryPI
 -----

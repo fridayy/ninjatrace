@@ -27,9 +27,16 @@ info() ->
 info(Node) when is_atom(Node) ->
   gen_server:call({?MODULE, Node}, get_info).
 
+%% @doc
+%% Returns the sensors for the current device (node).
+%% @end
 sensors() ->
   gen_server:call(?MODULE, get_sensors).
 
+%% @doc
+%% Returns the currently enabled sensors for a particular device represented as a node.
+%% Server nodes won't have any sensors enabled.
+%% @end
 sensors(Node) ->
   gen_server:call({?MODULE, Node}, get_sensors).
 
