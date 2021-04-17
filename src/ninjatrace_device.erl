@@ -27,6 +27,12 @@ info() ->
 info(Node) when is_atom(Node) ->
   gen_server:call({?MODULE, Node}, get_info).
 
+sensors() ->
+  gen_server:call(?MODULE, get_sensors).
+
+sensors(Node) ->
+  gen_server:call({?MODULE, Node}, get_sensors).
+
 start_link(Sensors) ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, Sensors, []).
 
@@ -34,6 +40,10 @@ init(Args) ->
   {ok, #state{sensors = Args}}.
 
 handle_call(get_info, _From, #state{sensors = Sensors} = State) ->
+  Info = lists:map(fun(MSensor) -> #{MSensor:name => MSensor:info()} end, Sensors),
+  {reply, #{info => Info}, State};
+
+handle_call(get_sensors, _From, #state{sensors = Sensors} = State) ->
   {reply, #{sensors => Sensors}, State};
 
 handle_call(_Request, _From, State = #state{}) ->

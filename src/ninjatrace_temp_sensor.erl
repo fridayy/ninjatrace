@@ -12,7 +12,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
--export([info/0]).
+-export([info/0, name/0]).
 
 -define(SERVER, ?MODULE).
 
@@ -21,6 +21,8 @@
 }).
 
 %% API
+name() -> temperature.
+
 info() ->
   gen_server:call(?MODULE, get_info).
 

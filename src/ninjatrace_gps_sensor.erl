@@ -17,6 +17,7 @@
 -export([start_link/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
+-export([info/0, name/0]).
 
 -type gprmc_map() :: #{
 type := gprmc,
@@ -40,6 +41,8 @@ pos_mode := maybe(no_fix | auto_fix | diff_fix)
 }).
 
 %% API
+name() -> gps_sensor.
+
 info() ->
   gen_server:call(?MODULE, get_info).
 
