@@ -12,7 +12,7 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
--export([info/0, info/1]).
+-export([info/0, info/1, sensors/0, sensors/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -40,7 +40,7 @@ init(Args) ->
   {ok, #state{sensors = Args}}.
 
 handle_call(get_info, _From, #state{sensors = Sensors} = State) ->
-  Info = lists:map(fun(MSensor) -> #{MSensor:name => MSensor:info()} end, Sensors),
+  Info = lists:map(fun(MSensor) -> #{MSensor:name() => MSensor:info()} end, Sensors),
   {reply, #{info => Info}, State};
 
 handle_call(get_sensors, _From, #state{sensors = Sensors} = State) ->
