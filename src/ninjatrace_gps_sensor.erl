@@ -35,10 +35,13 @@ pos_mode := maybe(no_fix | auto_fix | diff_fix)
 -define(SERVER, ?MODULE).
 
 -record(state, {
-  subscriber :: [pid()]
+  lat :: float(),
+  lng :: float()
 }).
 
 %% API
+info() ->
+  gen_server:call(?MODULE, get_info).
 
 %% gen_server
 start_link() ->
@@ -57,10 +60,11 @@ init([]) ->
         end
                                                          end),
       ninjatrace_logger:info(?MODULE, "gps sensor started"),
-      {ok, #state{
-        subscriber = []
-      }}
+      {ok, #state{}}
   end.
+
+handle_call(get_info, _From, #state{lat = Lat, lng = Lng} = State) ->
+  {reply, #{ lat => Lat, lng => Lng}, State};
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -68,11 +72,9 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({nmea, Message}, #state{subscriber =  Subs} = State) ->
-  lists:foreach(fun(Pid) ->
-                Pid ! to_lat_lon(Message)
-                end, Subs),
-  {noreply, State};
+handle_info({nmea, Message}, State) ->
+  {Lat, Lng } = to_lat_lon(Message),
+  {noreply, #state{lat = Lat, lng = Lng}};
 
 handle_info(Info, State = #state{}) ->
   ninjatrace_logger:info(?MODULE, "Unexpected Info: ~p", [Info]),
@@ -87,7 +89,7 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %% private
 
 %% @doc Converts the dms values of the gprmc map to lat long
-%% TODO: determine impace of the precision loss due to erlang:trunc/1
+%% TODO: determine impact of the precision loss due to erlang:trunc/1
 -spec(to_lat_lon(gprmc_map()) -> {number(), number()}).
 to_lat_lon(#{latitude := Latitude, ns := north, longitude := Longitude, ew := east}) ->
   {convert_from_dms(Latitude, false), convert_from_dms(Longitude, false)};

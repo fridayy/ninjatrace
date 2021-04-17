@@ -8,11 +8,11 @@
 
 -behaviour(gen_server).
 
--export([cpu_temp/0]).
-
 -export([start_link/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
+
+-export([info/0]).
 
 -define(SERVER, ?MODULE).
 
@@ -20,12 +20,9 @@
   cpu_temp_path :: string()
 }).
 
-cpu_temp() ->
-  gen_server:call(?MODULE, {get_temp, cpu}).
-
-%%%===================================================================
-%%% Spawning and gen_server implementation
-%%%===================================================================
+%% API
+info() ->
+  gen_server:call(?MODULE, get_info).
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
@@ -37,8 +34,9 @@ init([]) ->
     cpu_temp_path = CpuTempPath
   }}.
 
-handle_call({get_temp, cpu}, From, State = #state{cpu_temp_path = CpuPath}) ->
-  {reply, read_temp_from(CpuPath), State};
+handle_call(get_info, _From, State = #state{cpu_temp_path = CpuPath}) ->
+  {ok, Degree, SiUnit} = read_temp_from(CpuPath),
+  {reply, #{temperature => Degree, unit => SiUnit}, State};
 
 handle_call(Request, _From, State = #state{}) ->
   ninjatrace_logger:info(?MODULE, "Unexpected call: ~p", [Request]),
@@ -60,7 +58,7 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
--spec(read_temp_from(string()) -> {ok, integer(), celsius} | {error, string()}).
+-spec(read_temp_from(string()) -> {ok, float(), celsius} | {error, string()}).
 read_temp_from(SensorPath) ->
   case file:open(SensorPath, read) of
     {ok, IoDevice} ->

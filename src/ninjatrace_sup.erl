@@ -26,13 +26,18 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
+    Sensors = application:get_env(ninjatrace, sensors, []),
     SupFlags = #{strategy => one_for_one,
                  intensity => 10,
                  period => 5},
     ChildSpecs = [
         #{
             id => ninjatrace_sensor_sup,
-            start => {ninjatrace_sensor_sup, start_link, []}
+            start => {ninjatrace_sensor_sup, start_link, [Sensors]}
+        },
+        #{
+            id => ninjatrace_device,
+            start => {ninjatrace_device, start_link, [Sensors]}
         }
         ],
     {ok, {SupFlags, ChildSpecs}}.

@@ -9,15 +9,12 @@
 
 -behaviour(supervisor).
 
--export([start_link/0, init/1]).
+-export([start_link/1, init/1]).
 
-start_link() ->
-  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link(Sensors) ->
+  supervisor:start_link({local, ?MODULE}, ?MODULE, Sensors).
 
-init([]) ->
-
-  Sensors = application:get_env(ninjatrace, sensors, []),
-  % load the the active sensors from the configuration
+init(Sensors) ->
   ninjatrace_logger:info(?MODULE, "Starting active Sensors = ~p~n", [Sensors]),
   SensorSpecs = lists:map(fun(Id) ->
     #{id => Id,
