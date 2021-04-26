@@ -67,7 +67,7 @@ init([]) ->
   end.
 
 handle_call(get_info, _From, #state{lat = Lat, lng = Lng} = State) ->
-  {reply, #{ lat => Lat, lng => Lng}, State};
+  {reply, #{lat => Lat, lng => Lng}, State};
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -76,7 +76,7 @@ handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
 handle_info({nmea, Message}, State) ->
-  {Lat, Lng } = to_lat_lon(Message),
+  {Lat, Lng} = to_lat_lon(Message),
   {noreply, #state{lat = Lat, lng = Lng}};
 
 handle_info(Info, State = #state{}) ->

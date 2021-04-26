@@ -2,7 +2,7 @@
 %%% @author bnjm
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%  Abstraction over a currently running and connected device
+%%%  Abstraction over a currently running and connected devices
 %%% @end
 %%%-------------------------------------------------------------------
 -module(ninjatrace_device).
@@ -12,7 +12,7 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
--export([info/0, info/1, sensors/0, sensors/1]).
+-export([info/0, info/1, sensors/0, sensors/1, info/2]).
 
 -define(SERVER, ?MODULE).
 
@@ -26,6 +26,9 @@ info() ->
 
 info(Node) when is_atom(Node) ->
   gen_server:call({?MODULE, Node}, get_info).
+
+info(Node, Timeout) when is_atom(Node) ->
+  gen_server:call({?MODULE, Node}, get_info,Timeout).
 
 %% @doc
 %% Returns the sensors for the current device (node).

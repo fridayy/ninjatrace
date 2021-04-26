@@ -26,7 +26,12 @@ init([Type]) ->
   {ok, {SupFlags, ChildSpecs}}.
 
 %% internal functions
-determine_child_specs(server) -> [];
+determine_child_specs(server) -> [
+  #{
+    id => ninjatrace_device_server,
+    start => {ninjatrace_device_server, start_link, []}
+  }
+];
 determine_child_specs(device) ->
   Sensors = application:get_env(ninjatrace, sensors, []),
   [

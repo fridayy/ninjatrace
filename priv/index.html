@@ -3,14 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+          integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+          crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+            integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+            crossorigin=""></script>
 </head>
 <body>
-    <b>Hello World!</b>
+    <div id="map" style="height: 1000px"></div>
     <script>
-        const socket = new WebSocket("ws://localhost:8080/websocket");
+        var map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const socket = new WebSocket("ws://localhost:8080/info/ws/device1@archpi-1");
         socket.addEventListener("open", () => {});
         socket.addEventListener("message", (event) => {
+            // {"info":[{"gps_sensor":{"lat":47.030825,"lng":15.414550}},{"temperature":{"temperature":38.459000,"unit":"celsius"}}]} localhost:8080:24:21
             console.log(event.data);
+            json = JSON.parse(event.data);
+            gpsData = json["info"][0]["gps_sensor"]
+            tempData = json["info"][1]["temperature"]
+            lat = gpsData["lat"];
+            lng = gpsData["lng"];
+
+            map.setView([lat, lng], 13)
+            const marker = L.marker([lat, lng]);
+            marker.bindPopup(`CPU Temperature: ${tempData["temperature"]} °C`)
+            marker.addTo(map);
         });
     </script>
 </body>

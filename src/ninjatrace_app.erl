@@ -28,8 +28,8 @@ init_cowboy(server) ->
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/", cowboy_static, {priv_file, ninjatrace, "index.html"}},
-            {"/info/:device_name/", ninjatrace_info_handler, []},
-            {"/websocket/:device_name", ninjatrace_ws_handler, []}
+            {"/info/:device_name", ninjatrace_info_handler, []},
+            {"/info/ws/:device_name", ninjatrace_ws_handler, []}
             ]}
     ]),
     {ok, _} = cowboy:start_clear(ninjatrace_cowboy_listener,
