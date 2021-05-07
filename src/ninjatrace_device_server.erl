@@ -20,9 +20,7 @@
 
 -define(SERVER, ?MODULE).
 
--type(subscriptions() :: #{
-node() := [pid()]
-}).
+-type(subscriptions() :: #{ node() := [pid()] }).
 
 %% TODO: use mnesia to store subscribers
 -record(state, {
