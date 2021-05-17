@@ -1,0 +1,10 @@
+[{ninjatrace, [
+  {sensors, []},
+  {type, ${NT_TYPE}}
+]},
+  {server,
+    [{certfile, "${NT_CERT_PATH}"},
+      {secure_renegotiate, true}]},
+  {client,
+    [{secure_renegotiate, true}]}
+].

@@ -14,7 +14,7 @@
 -compile(export_all).
 -endif.
 
--export([start_link/0]).
+-export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 -export([info/0, name/0]).
@@ -33,8 +33,6 @@ date := maybe(string()), % ddmmyy
 pos_mode := maybe(no_fix | auto_fix | diff_fix)
 }.
 
--define(SERVER, ?MODULE).
-
 -record(state, {
   lat :: float(),
   lng :: float()
@@ -47,16 +45,16 @@ info() ->
   gen_server:call(?MODULE, get_info).
 
 %% gen_server
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Args) ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
-init([]) ->
-  SensorPath = application:get_env(ninjatrace, gps_sensor_path, "/dev/ttyS0"),
-  case ninjatrace_file:is_device(SensorPath) of
+-spec(init([sensor_config()]) -> {ok, #state{}}).
+init([#{gps_sensor_path := SensorPath}]) ->
+  case ninjatrace_file:is_device_file(SensorPath) of
     false -> error(no_serial_port);
     true ->
       Self = self(),
-      ninjatrace_file:read_line_every("/dev/ttyS0", 500, fun(Line) ->
+      ninjatrace_file:read_line_every(SensorPath, 500, fun(Line) ->
         case parse_nmea(Line) of
           nil -> noop; %no op
           NmeaMessage -> Self ! {nmea, NmeaMessage}
@@ -75,7 +73,7 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({nmea, Message}, State) ->
+handle_info({nmea, Message}, _State) ->
   {Lat, Lng} = to_lat_lon(Message),
   {noreply, #state{lat = Lat, lng = Lng}};
 

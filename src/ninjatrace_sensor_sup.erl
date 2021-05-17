@@ -9,16 +9,18 @@
 
 -behaviour(supervisor).
 
+-include("types.hrl").
 -export([start_link/1, init/1]).
 
 start_link(Sensors) ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, Sensors).
 
+-spec(init([sensor_spec()]) -> {ok, #{}}).
 init(Sensors) ->
   ninjatrace_logger:info(?MODULE, "Starting active Sensors = ~p~n", [Sensors]),
-  SensorSpecs = lists:map(fun(Id) ->
-    #{id => Id,
-      start => {Id, start_link, []},
+  SensorSpecs = lists:map(fun({SensorName, SensorConfig}) ->
+    #{id => SensorName,
+      start => {SensorName, start_link, [SensorConfig]},
       restart => permanent,
       shutdown => 2000,
       type => worker}

@@ -13,10 +13,12 @@
 
 -behaviour(gen_server).
 
+-include("types.hrl").
+
 -export([start_link/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
--export([subscriptions/0, subscribe/2, unsubscribe/2, is_node/1]).
+-export([subscriptions/0, subscribe/2, unsubscribe/2, registered_devices/0, is_registered/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -37,19 +39,27 @@ unsubscribe(Node, ReceiverPid) ->
   gen_server:cast(?MODULE, {unsubscribe, Node, ReceiverPid}),
   ok.
 
+-spec(subscriptions() -> subscriptions()).
 subscriptions() ->
   gen_server:call(?MODULE, subscriptions).
 
--spec(is_node(binary()) -> {ok, node()} | {error, no_node}).
-is_node(DeviceName) when is_binary(DeviceName) ->
+-spec(registered_devices() -> [device()]).
+registered_devices() ->
+  maps:keys(subscriptions()).
+
+-spec(is_registered(device() |string()) -> {ok, device()} | {error, no_device}).
+is_registered(Device) when is_atom(Device) ->
+  case maps:is_key(Device, subscriptions()) of
+    true -> {ok, Device};
+    false -> {error, no_device}
+  end;
+
+is_registered(Device) when is_binary(Device) ->
   try
-    DeviceNameAtom = binary_to_existing_atom(DeviceName),
-    case lists:any(fun(Node) -> Node =:= DeviceNameAtom end, nodes()) of
-      true -> {ok, DeviceNameAtom};
-      false -> {error, no_node}
-    end
+    DeviceAtom = binary_to_existing_atom(Device),
+    is_registered(DeviceAtom)
   catch
-    error: badarg -> {error, no_node}
+    error: badarg -> {error, no_device}
   end.
 
 start_link() ->
@@ -67,6 +77,7 @@ handle_call({subscribe, Node, Pid}, _From, #state{subscriptions = Subscriptions}
   case maps:is_key(Node, Subscriptions) of
     true ->
       NewSubscriptions = do_subscribe(Node, Pid, Subscriptions),
+      start_timer(Node),
       NewState = #state{subscriptions = NewSubscriptions},
       {reply, ok, NewState};
     false ->
@@ -93,11 +104,11 @@ handle_info({timeout, _TimerRef, {Node, timeouts, Timeouts}}, #state{subscriptio
   try
     Response = ninjatrace_device:info(Node, 1000),
     lists:foreach(fun(Pid) -> Pid ! {ok, Response} end, Subscribers),
-    tick(Node)
+    start_timer(Node)
   catch
     exit:{timeout, _} ->
       lists:foreach(fun(Pid) -> Pid ! {error, timeout} end, Subscribers),
-      tick(Node, Timeouts + 1);
+      start_timer(Node, Timeouts + 1);
     exit:{nodedown, Node} ->
       lists:foreach(fun(Pid) -> Pid ! {error, device_down} end, Subscribers),
       maps:remove(Node, Subscribers)
@@ -154,7 +165,6 @@ is_device(Node) when is_atom(Node) ->
 do_subscribe(Node, Pid, Subscriptions) ->
   maps:update_with(Node, fun(Pids) -> case Pids of
                                         [] ->
-                                          tick(Node),
                                           [Pid | Pids];
                                         _Else ->
                                           [Pid | Pids]
@@ -167,6 +177,6 @@ do_unsubscribe(Node, Pid, Subscriptions) ->
                          end,
     Subscriptions).
 
-tick(Node) -> tick(Node, 0).
-tick(Node, Timeouts) ->
+start_timer(Node) -> start_timer(Node, 0).
+start_timer(Node, Timeouts) ->
   erlang:start_timer(1000, self(), {Node, timeouts, Timeouts}).

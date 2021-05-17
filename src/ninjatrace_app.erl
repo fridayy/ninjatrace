@@ -12,8 +12,12 @@
 start() ->
     Type = application:get_env(ninjatrace, type, device),
     case Type of
-        server -> ninjatrace_web:init();
-        device -> noop
+        % start the web application only in server mode
+        server ->
+            ninjatrace_logger:info(?MODULE, "Starting in server mode"),
+            {ok, _} = application:ensure_all_started(ninjatrace_web);
+        device ->
+            ninjatrace_logger:info(?MODULE, ("Starting in device mode"))
     end,
     ninjatrace_sup:start_link(Type).
 

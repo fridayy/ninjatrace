@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 11. Apr 2021 7:36 PM
 %%%-------------------------------------------------------------------
--module(ninjatrace_ws_handler).
+-module(ninjatrace_web_websocket_h).
 -author("bnjm").
 
 %% API
@@ -14,7 +14,7 @@
 
 init(Req, State) ->
   DeviceName = cowboy_req:binding(device_name, Req),
-  case ninjatrace_device_server:is_node(DeviceName) of
+  case ninjatrace_device_server:is_registered(DeviceName) of
     {ok, Node} -> {cowboy_websocket, Req, Node};
     {error, no_node} ->
       Res = cowboy_req:reply(404, #{

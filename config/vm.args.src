@@ -1,0 +1,2 @@
+-name ${NODE_NAME}
+-proto_dist inet_tls

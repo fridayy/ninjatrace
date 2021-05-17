@@ -5,7 +5,11 @@
   {mod, {ninjatrace_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    crypto,
+    public_key,
+    asn1,
+    ssl
    ]},
   {env,[]},
   {modules, []},

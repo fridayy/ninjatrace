@@ -2,7 +2,7 @@
 %%% @author bnjm
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%  Abstraction over a currently running and connected devices
+%%% Abstraction over a currently running and connected devices
 %%% @end
 %%%-------------------------------------------------------------------
 -module(ninjatrace_device).
@@ -12,49 +12,55 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
--export([info/0, info/1, sensors/0, sensors/1, info/2]).
+-export([info/1, sensors/1]).
 
--define(SERVER, ?MODULE).
+-include("types.hrl").
 
 -record(state, {
-  sensors :: list()
+  sensors :: list(sensor_spec())
 }).
 
 %% API
-info() ->
-  gen_server:call(?MODULE, get_info).
-
-info(Node) when is_atom(Node) ->
-  gen_server:call({?MODULE, Node}, get_info).
-
-info(Node, Timeout) when is_atom(Node) ->
-  gen_server:call({?MODULE, Node}, get_info,Timeout).
 
 %% @doc
-%% Returns the sensors for the current device (node).
+%% Returns aggregated information about a particular device.
 %% @end
-sensors() ->
-  gen_server:call(?MODULE, get_sensors).
+-spec(info(device()) -> {ok, [sensor_info()]} | {error, atom()}).
+info(Device) when is_atom(Device) ->
+  gen_server:call({?MODULE, Device}, get_info);
+
+info(Device) when is_binary(Device) ->
+  case ninjatrace_device_server:is_registered(Device) of
+    {ok, DeviceAtom} -> info(DeviceAtom);
+    Error -> Error
+  end.
 
 %% @doc
-%% Returns the currently enabled sensors for a particular device represented as a node.
-%% Server nodes won't have any sensors enabled.
+%% Returns the currently enabled sensors for a particular device.
 %% @end
-sensors(Node) ->
-  gen_server:call({?MODULE, Node}, get_sensors).
+-spec(sensors(device() | string()) -> {ok, [sensor_spec()]} | {error, no_device}).
+sensors(Device) ->
+  gen_server:call({?MODULE, Device}, get_sensors);
+
+sensors(Device) when is_binary(Device) ->
+  case ninjatrace_device_server:is_registered(Device) of
+    {ok, DeviceAtom} -> {ok, sensors(DeviceAtom)};
+    Error -> Error
+  end.
 
 start_link(Sensors) ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, Sensors, []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, Sensors, []).
 
-init(Args) ->
-  {ok, #state{sensors = Args}}.
+init(Sensors) ->
+  ninjatrace_logger:info(?MODULE, "Active Sensors: ~p", [Sensors]),
+  {ok, #state{sensors = Sensors}}.
 
 handle_call(get_info, _From, #state{sensors = Sensors} = State) ->
-  Info = lists:map(fun(MSensor) -> #{MSensor:name() => MSensor:info()} end, Sensors),
-  {reply, #{info => Info}, State};
+  Info = lists:map(fun({SensorModule, _Config}) -> #{SensorModule:name() => SensorModule:info()} end, Sensors),
+  {reply, {ok, Info}, State};
 
 handle_call(get_sensors, _From, #state{sensors = Sensors} = State) ->
-  {reply, #{sensors => Sensors}, State};
+  {reply, {ok, Sensors}, State};
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -70,7 +76,3 @@ terminate(_Reason, _State = #state{}) ->
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
   {ok, State}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================

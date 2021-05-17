@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 if [[ -z "$1" ]]; then
-  echo "Missing parameter - usage: ./ninjatrace-debug [SNAME]"
+  echo "Missing parameter - usage: ./ninjatrace-srv [SNAME]"
   exit 1
 fi
 # thanks: https://stackoverflow.com/questions/59895/how-can-i-get-the-source-directory-of-a-bash-script-from-within-the-script-itsel
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CURRENT_DIR=(pwd)
-cd $DIR && cd ../ && rebar3 shell --sname "$1" --setcookie ntdebug --config ./bin/server.config && cd CURRENT_DIR || exit
+cd $DIR && cd ../ && rebar3 shell --sname "$1" --setcookie ntdebug --config ./config/shell-srv.config && cd CURRENT_DIR || exit

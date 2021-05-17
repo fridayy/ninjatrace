@@ -1,0 +1,20 @@
+%%%-------------------------------------------------------------------
+%%% @author bnjm
+%%% @copyright (C) 2021, <COMPANY>
+%%% @doc
+%%% The server side of things
+%%% @end
+%%% Created : 13. May 2021 10:15 PM
+%%%-------------------------------------------------------------------
+{application, ninjatrace_web, [
+  {description, "The web API for ninjatrace"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+    kernel,
+    stdlib,
+    cowboy
+  ]},
+  {mod, {ninjatrace_web_app, []}},
+  {env, []}
+]}.

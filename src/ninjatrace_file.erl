@@ -14,7 +14,7 @@
 -endif.
 
 %% API
--export([list_dir/1, read_line_every/3, read_line_every/4, close/1, is_device/1]).
+-export([list_dir/1, read_line_every/3, read_line_every/4, close/1, is_device_file/1]).
 
 -type path() :: string().
 -type file_read_pid() :: pid().
@@ -53,8 +53,8 @@ close(Pid) ->
   Pid ! close,
   ok.
 
--spec(is_device(path()) -> boolean()).
-is_device(Path) ->
+-spec(is_device_file(path()) -> boolean()).
+is_device_file(Path) ->
   case file:read_file_info(Path) of
     {ok, Info} ->
       erlang:element(3, Info) =:= device;

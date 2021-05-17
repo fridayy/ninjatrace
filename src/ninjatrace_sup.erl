@@ -11,14 +11,11 @@
 
 -export([init/1]).
 
--define(SERVER, ?MODULE).
-
 start_link() -> start_link(device).
 start_link(Type) ->
-  supervisor:start_link({local, ?SERVER}, ?MODULE, [Type]).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, [Type]).
 
 init([Type]) ->
-  io:format("Type = ~p~n", [Type]),
   SupFlags = #{strategy => one_for_one,
     intensity => 10,
     period => 5},

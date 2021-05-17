@@ -4,12 +4,11 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 10. Apr 2021 3:57 PM
+%%% Created : 16. May 2021 12:16 AM
 %%%-------------------------------------------------------------------
+-module(ninjatrace).
 -author("bnjm").
 
--type(maybe(T) :: T | nil).
--type(device() :: node()).
--type(sensor_info() :: #{ atom() := any()}).
--type(sensor_config() :: #{ atom() := any()}).
--type(sensor_spec() :: {atom(), sensor_config()}).
+%% API
+-export([]).
+
