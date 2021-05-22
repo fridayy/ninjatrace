@@ -48,8 +48,8 @@ info() ->
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
--spec(init([sensor_config()]) -> {ok, #state{}}).
-init([#{gps_sensor_path := SensorPath}]) ->
+-spec(init(sensor_config()) -> {ok, #state{}}).
+init(#{gps_serial_device := SensorPath}) ->
   case ninjatrace_file:is_device_file(SensorPath) of
     false -> error(no_serial_port);
     true ->
@@ -57,7 +57,8 @@ init([#{gps_sensor_path := SensorPath}]) ->
       ninjatrace_file:read_line_every(SensorPath, 500, fun(Line) ->
         case parse_nmea(Line) of
           nil -> noop; %no op
-          NmeaMessage -> Self ! {nmea, NmeaMessage}
+          {ok, NmeaMessage} -> Self ! {nmea, NmeaMessage};
+          {error, no_track} -> noop
         end
                                                          end),
       ninjatrace_logger:info(?MODULE, "gps sensor started"),
@@ -66,6 +67,9 @@ init([#{gps_sensor_path := SensorPath}]) ->
 
 handle_call(get_info, _From, #state{lat = Lat, lng = Lng} = State) ->
   {reply, #{lat => Lat, lng => Lng}, State};
+
+handle_call(get_info, _From, #state{lat = nil, lng = nil} = State) ->
+  {reply, nil, State};
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -130,15 +134,18 @@ parse_gprmc(<<Time:10/binary, $,, $V, _/bits>>) ->
 
 parse_gprmc(<<Time:10/binary, $,, $A, $,, Latitude:9/binary, $,, NorthSouth:1/binary, $,, Longitude:10/binary, $,
   , EastWest:1/binary, $,, Speed:4/binary, $,, Cog:4/binary, $,, Date:6/binary, $,, $,, $,, PosMode:1/binary, _Rest/bits>>) ->
-  new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode);
+  {ok, new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode)};
 
 parse_gprmc(<<Time:10/binary, $,, $A, $,, Latitude:9/binary, $,, NorthSouth:1/binary, $,, Longitude:10/binary, $,
   , EastWest:1/binary, $,, Speed:4/binary, $,, Cog:5/binary, $,, Date:6/binary, $,, $,, $,, PosMode:1/binary, _Rest/bits>>) ->
-  new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode);
+  {ok, new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode)};
 
 parse_gprmc(<<Time:10/binary, $,, $A, $,, Latitude:9/binary, $,, NorthSouth:1/binary, $,, Longitude:10/binary, $,
   , EastWest:1/binary, $,, Speed:4/binary, $,, Cog:6/binary, $,, Date:6/binary, $,, $,, $,, PosMode:1/binary, _Rest/bits>>) ->
-  new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode).
+  {ok, new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode)}.
+
+parse_gprmc(_Any) ->
+  {error, no_track}.
 
 new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode) ->
   #{type => gprmc,

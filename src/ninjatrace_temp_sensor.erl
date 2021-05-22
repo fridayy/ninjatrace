@@ -27,8 +27,8 @@ info() ->
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
--spec(init([sensor_config()]) -> {ok, #state{}}).
-init([#{cpu_temp_path := CpuTempPath}]) ->
+-spec(init(sensor_config()) -> {ok, #state{}}).
+init(#{cpu_temp_path := CpuTempPath}) ->
   ninjatrace_logger:info(?MODULE, "Using CPU temp path: ~p", [CpuTempPath]),
   {ok, #state{
     cpu_temp_path = CpuTempPath
