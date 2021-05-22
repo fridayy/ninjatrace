@@ -1,8 +1,7 @@
 const getDeviceList = async () => {
     try {
         const response = await fetch(`${BASE_URL}/devices`)
-        const devices = await response.json()
-        return devices
+        return await response.json()
     } catch (e) {
         // do something useful here (notification)
         console.error(e)
@@ -10,11 +9,14 @@ const getDeviceList = async () => {
 }
 
 const BASE_URL = "http://localhost:8080"
+const WEBSOCKET_URL = "ws://localhost:8080"
+
+const hasGpsSensor = (sensors) => sensors.filter(sensor => sensor.name === "gps_sensor")
+    .length > 0
 
 const renderDeviceList = async () => {
     const container = document.getElementById("device-container")
-    const response = await fetch(`${BASE_URL}/devices`)
-    const devices = await response.json()
+    const devices = await getDeviceList()
     if (devices.length === 0) return;
     container.innerHTML =
         `
@@ -25,12 +27,18 @@ ${devices.map(device => `
       <div class="card-body">
         <h5 class="card-title">${device.name}</h5>
         <p class="card-text">Sensors</p>
-        <ul class="list-group list-group-flush">
+        <div class="row">
         ${device.sensors.map((sensor) =>
-            `<li class="list-group-item">${sensor.name}</li>`
+            `<div class="col-sm-3">
+                <span class="badge bg-primary">${sensor.name}</span>
+                </div>`
         )}
-        </ul>
-        <a href="#" class="btn btn-primary" onclick="trace('${device.name}')">Trace</a>
+        </div>
+        <div class="row" style="margin-top: 2%">
+        <div class="col-sm-6">
+        ${hasGpsSensor(device.sensors) ? `<a href="#" class="btn btn-primary" onclick="trace('${device.name}')">Trace</a>` : `<div/>`}
+        </div>
+        </div>
       </div>
     </div>
   </div>
@@ -47,46 +55,70 @@ const renderMap = () => {
     return map
 }
 
-const trace = (deviceName) => {
-        const map = renderMap();
-        try {
-            const socket = new WebSocket(`${BASE_URL}/info/ws/${deviceName}`)
-            new WinBox({
-                title: "ninja live location",
-                mount: document.getElementById("map"),
-                background: "#181D22FF",
-                border: 0.5,
-                onfocus: () => {
-                    document.getElementById("map").style.display = "block";
-                    socket.addEventListener("message", (message) => {
-                        const json = JSON.parse(message.data);
-                        const gpsData = json["info"][0]["gps_sensor"]
-                        const tempData = json["info"][1]["temperature"]
-                        const lat = gpsData["lat"];
-                        const lng = gpsData["lng"];
+const parse = (message) => {
+    const sensorData = JSON.parse(message.data);
+    return sensorData
+        .reduce((acc, val) => Object.assign(val.data), {})
+}
 
-                        map.setView([lat, lng], 13)
-                        const marker = L.marker([lat, lng]);
-                        marker.bindPopup(`CPU Temperature: ${tempData["temperature"]} °C`)
-                        marker.addTo(map);
-                    });
-                    map.invalidateSize(true);
-                },
-                onclose: () => {
-                    document.getElementById("map").style.display = "none";
-                    socket.close();
-                    map.remove();
+const mapHandler = (map, socket, pastPositions, currentPositionMarker) => (message) => gpsEventHandler(map,
+    message,
+    socket,
+    pastPositions,
+    currentPositionMarker);
+const gpsEventHandler = (map, message, socket, pastPositions, currentPositionMarker) => {
+    const parsed = parse(message);
+    const currentPosition = [parsed.lat, parsed.lng]
+    if (currentPositionMarker !== null) currentPositionMarker.remove()
+    const newCurrentPositionMarker = L.marker(currentPosition).addTo(map)
+    // draw old positions
+    L.polyline(pastPositions, {color: 'green'}).addTo(map);
+
+    // sent a ping each 10 received messages
+    pastPositions.length % 10 === 0 ? socket.send("ping") : undefined
+
+    socket.onmessage = mapHandler(map, socket, [...pastPositions, currentPosition], newCurrentPositionMarker)
+}
+
+const trace = (deviceName) => {
+    const map = renderMap();
+    try {
+        const socket = new WebSocket(`${WEBSOCKET_URL}/info/ws/${deviceName}`)
+        new WinBox({
+            title: "ninja live location",
+            mount: document.getElementById("map"),
+            background: "#181D22FF",
+            border: 0.5,
+            onfocus: () => {
+                document.getElementById("map").style.display = "block";
+                socket.onmessage = (message) => {
+                    const initialPosition = parse(message);
+                    const coords = [initialPosition.lat, initialPosition.lng]
+                    // center the view on the initial position received
+                    map.setView(coords, 13)
+                    //set the new handler
+                    socket.onmessage = mapHandler(map, socket, [coords], null)
                 }
-            });
-        } catch (e) {
-            new WinBox({
-                title: "Error",
-                html: "<h1>Could not establish connection</h1>"
-            });
-        }
-    };
+                map.invalidateSize(true);
+            },
+            onclose: () => {
+                document.getElementById("map").style.display = "none";
+                socket.close();
+                map.remove();
+            }
+        });
+    } catch (e) {
+        map.remove();
+        console.error(e);
+        new WinBox({
+            title: "Error",
+            html: `<h1>Could not establish connection</h1>
+                    <small>${e.message}</small>`
+        });
+    }
+};
 
 const main = async () => {
     await renderDeviceList();
 };
-main().then(() => console.log("rendered"), (err) => console.error(err));
+main().then(() => console.log("ninjatrace initialized"), (err) => console.error(err));

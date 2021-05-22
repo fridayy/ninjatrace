@@ -1,0 +1,33 @@
+body {
+    background-color: #323131;
+    color: #cfe2c0;
+}
+
+.card {
+    background-color: #424242;
+}
+
+.bg-primary {
+    color: #424242 !important;
+    background-color: #0dfd8a !important;
+}
+
+.btn-primary:focus {
+    color: #424242 !important;
+    background-color: #44ffa5 !important;
+    border-color: #0b914d !important;
+}
+
+.btn-primary {
+    color: #424242 !important;
+    background-color: #0dfd8a !important;
+    border-color: #08b05c !important;
+}
+
+.winbox {
+    background-color: #323131 !important;
+}
+
+.wb-body {
+    background-color: #323131 !important;
+}

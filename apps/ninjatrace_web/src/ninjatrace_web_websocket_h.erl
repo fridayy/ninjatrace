@@ -32,11 +32,15 @@ websocket_handle(_Data, State) ->
   ninjatrace_logger:info(?MODULE, "received message from client - ignoring"),
   {ok, State}.
 
-websocket_info({ok, Map}, State) when is_map(Map) ->
-  {reply, {text, jsone:encode(Map, [{float_format, [{decimals, 6}]}])}, State};
+websocket_info({ok, {ok, SensorData}}, State) when is_list(SensorData) ->
+  {reply, {text, jsone:encode(SensorData, [{float_format, [{decimals, 6}]}])}, State};
 
 websocket_info({error, Reason}, State) ->
-  {reply, {text, jsone:encode(#{error => Reason})}, State}.
+  {reply, {text, jsone:encode(#{error => Reason})}, State};
+
+websocket_info(Message, State) ->
+  ninjatrace_logger:info(?MODULE, "received unknown message type ~p", [Message]),
+  {noreply, State}.
 
 terminate(_Reason, Req, DeviceName) ->
   io:format("websocket connection terminated~n~p~n", [maps:get(peer, Req)]),

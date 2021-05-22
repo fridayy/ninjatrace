@@ -56,7 +56,9 @@ init(Sensors) ->
   {ok, #state{sensors = Sensors}}.
 
 handle_call(get_info, _From, #state{sensors = Sensors} = State) ->
-  Info = lists:map(fun({SensorModule, _Config}) -> #{SensorModule:name() => SensorModule:info()} end, Sensors),
+  Info = lists:map(fun({SensorModule, _Config}) -> #{
+    name => SensorModule:name(),
+    data => SensorModule:info()} end, Sensors),
   {reply, {ok, Info}, State};
 
 handle_call(get_sensors, _From, #state{sensors = Sensors} = State) ->

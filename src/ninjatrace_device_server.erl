@@ -20,7 +20,8 @@
   code_change/3]).
 -export([subscriptions/0, subscribe/2, unsubscribe/2, registered_devices/0, is_registered/1]).
 
--define(SERVER, ?MODULE).
+%% the query interval for all devices
+-define(INTERVAL, 1000).
 
 -type(subscriptions() :: #{ node() := [pid()] }).
 
@@ -63,7 +64,7 @@ is_registered(Device) when is_binary(Device) ->
   end.
 
 start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
   net_kernel:monitor_nodes(true, [nodedown_reason]),
@@ -102,7 +103,7 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({timeout, _TimerRef, {Node, timeouts, Timeouts}}, #state{subscriptions = Subs} = State) ->
   Subscribers = maps:get(Node, Subs),
   try
-    Response = ninjatrace_device:info(Node, 1000),
+    Response = ninjatrace_device:info(Node),
     lists:foreach(fun(Pid) -> Pid ! {ok, Response} end, Subscribers),
     start_timer(Node)
   catch
@@ -178,5 +179,4 @@ do_unsubscribe(Node, Pid, Subscriptions) ->
     Subscriptions).
 
 start_timer(Node) -> start_timer(Node, 0).
-start_timer(Node, Timeouts) ->
-  erlang:start_timer(1000, self(), {Node, timeouts, Timeouts}).
+start_timer(Node, Timeouts) -> erlang:start_timer(?INTERVAL, self(), {Node, timeouts, Timeouts}).

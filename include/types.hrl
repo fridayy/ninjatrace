@@ -2,7 +2,7 @@
 %%% @author bnjm
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% Shared types over all applications
 %%% @end
 %%% Created : 10. Apr 2021 3:57 PM
 %%%-------------------------------------------------------------------
