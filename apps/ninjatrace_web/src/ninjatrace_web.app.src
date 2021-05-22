@@ -13,7 +13,8 @@
   {applications, [
     kernel,
     stdlib,
-    cowboy
+    cowboy,
+    jsone
   ]},
   {mod, {ninjatrace_web_app, []}},
   {env, []}
