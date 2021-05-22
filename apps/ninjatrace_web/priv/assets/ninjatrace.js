@@ -100,6 +100,13 @@ const trace = (deviceName) => {
                 document.getElementById("map").style.display = "block";
                 socket.onmessage = (message) => {
                     const initialPosition = parse(message);
+
+                    if (initialPosition.lat === undefined || initialPosition.lng === undefined) {
+                        console.warn("GPS track lost")
+                        socket.onmessage = mapHandler(map, socket, [], null)
+                        return;
+                    }
+
                     const coords = [initialPosition.lat, initialPosition.lng]
                     // center the view on the initial position received
                     map.setView(coords, 13)
