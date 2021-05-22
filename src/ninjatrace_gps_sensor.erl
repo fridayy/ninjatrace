@@ -142,7 +142,7 @@ parse_gprmc(<<Time:10/binary, $,, $A, $,, Latitude:9/binary, $,, NorthSouth:1/bi
 
 parse_gprmc(<<Time:10/binary, $,, $A, $,, Latitude:9/binary, $,, NorthSouth:1/binary, $,, Longitude:10/binary, $,
   , EastWest:1/binary, $,, Speed:4/binary, $,, Cog:6/binary, $,, Date:6/binary, $,, $,, $,, PosMode:1/binary, _Rest/bits>>) ->
-  {ok, new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode)}.
+  {ok, new_gprmc(Time, Latitude, NorthSouth, Longitude, EastWest, Speed, Cog, Date, PosMode)};
 
 parse_gprmc(_Any) ->
   {error, no_track}.
