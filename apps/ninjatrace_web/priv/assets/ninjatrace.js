@@ -69,9 +69,16 @@ const mapHandler = (map, socket, pastPositions, currentPositionMarker) => (messa
 const gpsEventHandler = (map, message, socket, pastPositions, currentPositionMarker) => {
     const parsed = parse(message);
     const currentPosition = [parsed.lat, parsed.lng]
+
+    if (parsed.lat === undefined || parsed.lng === undefined) {
+        console.warn("GPS lost connection")
+        socket.onmessage = mapHandler(map, socket, pastPositions, currentPositionMarker)
+        return
+    }
+
     if (currentPositionMarker !== null) currentPositionMarker.remove()
     const newCurrentPositionMarker = L.marker(currentPosition).addTo(map)
-    // draw old positions
+    // draw old positionsnet_adm:ping('srv@ec2-3-65-38-243.eu-central-1.compute.amazonaws.com').
     L.polyline(pastPositions, {color: 'green'}).addTo(map);
 
     // sent a ping each 10 received messages
