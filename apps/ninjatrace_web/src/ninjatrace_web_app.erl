@@ -19,7 +19,7 @@ stop(_State) ->
 init() ->
   %% TODO: dynamic routes would be nice for each device
   %% https://ninenines.eu/docs/en/cowboy/2.6/guide/routing/
-  ninjatrace_logger:info(?MODULE, "Starting Web on port: 8080"),
+  ninjatrace_logger:info(?MODULE, "Starting Web on port: 80"),
   Dispatch = cowboy_router:compile([
     {'_', [
       {"/", cowboy_static, {priv_file, ninjatrace_web, "index.html"}},
@@ -30,6 +30,6 @@ init() ->
     ]}
   ]),
   {ok, _} = cowboy:start_clear(ninjatrace_cowboy_listener,
-    [{port, 8080}],
+    [{port, 80}],
     #{env => #{dispatch => Dispatch}}
   ).

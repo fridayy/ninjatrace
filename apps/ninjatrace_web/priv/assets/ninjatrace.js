@@ -8,8 +8,8 @@ const getDeviceList = async () => {
     }
 }
 
-const BASE_URL = "http://localhost:8080"
-const WEBSOCKET_URL = "ws://localhost:8080"
+const BASE_URL = "http://ninjatrace.harmless.ninja"
+const WEBSOCKET_URL = "ws://ninjatrace.harmless.ninja"
 
 const hasGpsSensor = (sensors) => sensors.filter(sensor => sensor.name === "gps_sensor")
     .length > 0
