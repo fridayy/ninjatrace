@@ -14,8 +14,9 @@
 -behaviour(gen_server).
 
 -include("types.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
--export([start_link/0]).
+-export([start_link/0, mnesia_init/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 -export([subscriptions/0, subscribe/2, unsubscribe/2, registered_devices/0, is_registered/1]).
@@ -23,36 +24,38 @@
 %% the query interval for all devices
 -define(INTERVAL, 1000).
 
--type(subscriptions() :: #{ node() := [pid()] }).
+-mnesia_init({mnesia_init}).
 
-%% TODO: use mnesia to store subscribers
--record(state, {
-  subscriptions :: subscriptions()
+-record(subscriptions, {
+  device :: node(),
+  subscribers :: [pid()]
 }).
 
 %% API
 -spec(subscribe(node(), pid()) -> ok).
-subscribe(Node, ReceiverPid) ->
+subscribe(Node, ReceiverPid) when is_atom(Node) and is_pid(ReceiverPid) ->
   gen_server:call(?MODULE, {subscribe, Node, ReceiverPid}).
 
 -spec(unsubscribe(node(), pid()) -> ok).
-unsubscribe(Node, ReceiverPid) ->
+unsubscribe(Node, ReceiverPid) when is_atom(Node) and is_pid(ReceiverPid) ->
   gen_server:cast(?MODULE, {unsubscribe, Node, ReceiverPid}),
   ok.
 
--spec(subscriptions() -> subscriptions()).
+-spec(subscriptions() -> #{device := node(), subscribers := [pid()]}).
 subscriptions() ->
-  gen_server:call(?MODULE, subscriptions).
+  lists:foldl(fun({Device, Subs}, Acc) ->
+    maps:put(Device, Subs, Acc)
+              end, maps:new(), read_all()).
 
 -spec(registered_devices() -> [device()]).
 registered_devices() ->
-  maps:keys(subscriptions()).
+  read_all_devices().
 
 -spec(is_registered(device() |string()) -> {ok, device()} | {error, no_device}).
 is_registered(Device) when is_atom(Device) ->
-  case maps:is_key(Device, subscriptions()) of
-    true -> {ok, Device};
-    false -> {error, no_device}
+  case read_one_device(Device) of
+    {ok, Device, _} -> {ok, Device};
+    _ -> {error, no_device}
   end;
 
 is_registered(Device) when is_binary(Device) ->
@@ -63,120 +66,153 @@ is_registered(Device) when is_binary(Device) ->
     error: badarg -> {error, no_device}
   end.
 
+mnesia_init(new) ->
+  ninjatrace_logger:info(?MODULE, "Init subscription table"),
+  {subscriptions, [{attributes, record_info(fields, subscriptions)}]};
+
+mnesia_init(copy) ->
+  ninjatrace_logger:info(?MODULE, "Copying subscription table"),
+  {subscriptions, ram_copies}.
+
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
   net_kernel:monitor_nodes(true, [nodedown_reason]),
-  {ok, #state{subscriptions = #{}}}.
+  {ok, {}}.
 
-handle_call(subscriptions, _From, #state{subscriptions = Subscriptions} = State) ->
-  {reply, Subscriptions, State};
-
-handle_call({subscribe, Node, Pid}, _From, #state{subscriptions = Subscriptions}) ->
-  %% TODO: monitor the subscription - otherwise it will zombie around in the map
-  case maps:is_key(Node, Subscriptions) of
-    true ->
-      NewSubscriptions = do_subscribe(Node, Pid, Subscriptions),
+handle_call({subscribe, Node, Pid}, _From, State) ->
+  case add_subscription(Node, Pid) of
+    ok ->
       start_timer(Node),
-      NewState = #state{subscriptions = NewSubscriptions},
-      {reply, ok, NewState};
-    false ->
-      {reply, {error, not_registered}}
-  end;
+      {reply, ok, State};
+    _ ->
+      {reply, {error, unknown}, State}
+  end,
+  {reply, ok, State};
 
-handle_call(_Request, _From, #state{} = State) ->
+handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({unsubscribe, Node, Pid}, #state{subscriptions = Subscriptions} = State) ->
-  case maps:is_key(Node, Subscriptions) of
-    true ->
-      NewSubscriptions = do_unsubscribe(Node, Pid, Subscriptions),
-      NewState = #state{subscriptions = NewSubscriptions},
-      {noreply, NewState};
-    false -> {noreply, State}
-  end;
+handle_cast({unsubscribe, Node, Pid}, State) ->
+  remove_subscription(Node, Pid),
+  {noreply, State};
 
-handle_cast(_Request, State = #state{}) ->
+handle_cast(_Request, State) ->
   {noreply, State}.
 
-handle_info({timeout, _TimerRef, {Node, timeouts, Timeouts}}, #state{subscriptions = Subs} = State) ->
-  Subscribers = maps:get(Node, Subs),
+handle_info({timeout, _TimerRef, {Node, timeouts, Timeouts}}, State) ->
+  {ok, Device, Subscribers} = read_one_device(Node),
   try
-    Response = ninjatrace_device:info(Node),
+    Response = ninjatrace_device:info(Device),
     lists:foreach(fun(Pid) -> Pid ! {ok, Response} end, Subscribers),
-    start_timer(Node)
+    start_timer(Device)
   catch
     exit:{timeout, _} ->
       lists:foreach(fun(Pid) -> Pid ! {error, timeout} end, Subscribers),
-      start_timer(Node, Timeouts + 1);
+      start_timer(Device, Timeouts + 1);
     exit:{nodedown, Node} ->
       lists:foreach(fun(Pid) -> Pid ! {error, device_down} end, Subscribers),
-      maps:remove(Node, Subscribers)
+      remove_device(Node)
   end,
   {noreply, State};
 
-handle_info({nodeup, Node, _Info}, #state{subscriptions = Subscriptions} = State) ->
+handle_info({nodeup, Node, _Info}, State) ->
   case is_device(Node) of
-    true ->
-      NewSubscriptions = maps:put(Node, [], Subscriptions),
-      NewState = #state{subscriptions = NewSubscriptions},
-      {noreply, NewState};
-    false -> {noreply, State}
+    {ok, Device} ->
+      add_device(Device),
+      {noreply, State};
+    {error, Reason} ->
+      ninjatrace_logger:info(?MODULE, "Could not add node as device ~p", [Reason]),
+      {noreply, State}
   end;
 
-handle_info({nodedown, Node, _Info}, #state{subscriptions = Subscriptions} = State) ->
-  case is_device(Node) of
-    true ->
-      NewSubscriptions = maps:remove(Node, Subscriptions),
-      {noreply, #state{subscriptions = NewSubscriptions}};
-    false -> {noreply, State}
-  end;
+handle_info({nodedown, Node, _Info}, State) ->
+  remove_device(Node),
+  {noreply, State};
 
-handle_info(Info, State = #state{}) ->
+handle_info(Info, State) ->
   ninjatrace_logger:info(?MODULE, "Unnown info: ~p~n", [Info]),
   {noreply, State}.
 
-terminate(_Reason, _State = #state{}) ->
+terminate(_Reason, _State) ->
   ok.
 
-code_change(_OldVsn, State = #state{}, _Extra) ->
+code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+% internal
 is_device(DeviceName) when is_binary(DeviceName) ->
   try
     PotentialNode = binary_to_existing_atom(DeviceName),
-    case lists:any(fun(Node) -> Node =:= PotentialNode end, nodes()) of
-      true -> {ok, PotentialNode};
-      false -> {error, unknown_device}
-    end
+    is_device(PotentialNode)
   catch
-    error: badarg -> false
+    error: badarg -> {error, no_device}
   end;
 
 is_device(Node) when is_atom(Node) ->
-  case rpc:call(Node, application, get_env, [ninjatrace, type, device]) of
-    device -> true;
-    _Else -> false
+  ninjatrace_logger:info(?MODULE, "Checking if ~p is a device", [Node]),
+  case rpc:call(Node, application, get_env, [ninjatrace, mode, unknown]) of
+    device -> {ok, Node};
+    _Else -> {error, no_device}
   end.
 
-do_subscribe(Node, Pid, Subscriptions) ->
-  maps:update_with(Node, fun(Pids) -> case Pids of
-                                        [] ->
-                                          [Pid | Pids];
-                                        _Else ->
-                                          [Pid | Pids]
-                                      end
-                         end, Subscriptions).
+read_one_device(Device) ->
+  case mnesia:dirty_read(subscriptions, Device) of
+      [{subscriptions, Device, Subs}] -> {ok, Device, Subs};
+      [] -> {error, no_device}
+  end.
 
-do_unsubscribe(Node, Pid, Subscriptions) ->
-  maps:update_with(Node, fun(Pids) ->
-    lists:filter(fun(P) -> P =/= Pid end, Pids)
-                         end,
-    Subscriptions).
+read_all_devices() ->
+  {atomic, Devices} = mnesia:transaction(fun() ->
+    Table = mnesia:table(subscriptions),
+    Query = qlc:q([D || {subscriptions, D, _} <- Table]),
+    qlc:eval(Query)
+                                         end),
+  Devices.
+
+read_all() ->
+  {atomic, Items} = mnesia:transaction(fun() ->
+    Table = mnesia:table(subscriptions),
+    Query = qlc:q([{D, S} || {subscriptions, D, S} <- Table]),
+    qlc:eval(Query)
+                                       end),
+  Items.
+
+add_subscription(Node, Pid) ->
+  ninjatrace_logger:info(?MODULE, "Adding subscription ~p -> ~p", [Pid, Node]),
+  {atomic, ok} = mnesia:transaction(fun() ->
+    [{subscriptions, Device, Subs}] = mnesia:read(subscriptions, Node),
+    ok = mnesia:write(#subscriptions{device = Device, subscribers = [Pid | Subs]}),
+    ninjatrace_logger:info(?MODULE, "Successfully added subscription ~p -> ~p", [Pid, Node])
+                                    end),
+  ok.
+
+add_device(Node) ->
+  add_device(Node, []).
+
+add_device(Node, Pids) ->
+  ninjatrace_logger:info(?MODULE, "Adding device ~p -> ~p", [Node, Pids]),
+  {atomic, ok} = mnesia:transaction(fun() ->
+    ok = mnesia:write(#subscriptions{device = Node, subscribers = Pids}),
+    ninjatrace_logger:info(?MODULE, "Device added ~p -> ~p", [Node, Pids])
+                                    end),
+  ok.
+
+remove_subscription(Node, Pid) ->
+  ninjatrace_logger:info(?MODULE, "Removing subscription ~p -> ~p", [Pid, Node]),
+  {atomic, ok} = mnesia:transaction(fun() ->
+    [{subscriptions, Device, Subs}] = mnesia:read(subscriptions, Node),
+    ok = mnesia:write(#subscriptions{device = Device, subscribers = lists:delete(Pid, Subs)}),
+    ninjatrace_logger:info(?MODULE, "Removed subscription ~p -> ~p", [Node, Pid])
+                                    end),
+  ok.
+
+remove_device(Node) ->
+  {atomic, ok} = mnesia:transaction(fun() ->
+    mnesia:delete({subscriptions, Node})
+                                    end),
+  ok.
 
 start_timer(Node) -> start_timer(Node, 0).
 start_timer(Node, Timeouts) -> erlang:start_timer(?INTERVAL, self(), {Node, timeouts, Timeouts}).

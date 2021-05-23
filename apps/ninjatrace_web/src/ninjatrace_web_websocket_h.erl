@@ -16,11 +16,12 @@ init(Req, State) ->
   DeviceName = cowboy_req:binding(device_name, Req),
   case ninjatrace_device_server:is_registered(DeviceName) of
     {ok, Node} -> {cowboy_websocket, Req, Node};
-    {error, no_node} ->
+    {error, no_device} ->
       Res = cowboy_req:reply(404, #{
-      <<"content_type">> => <<"text/html">>
-    }, <<"no such device">>, Req),
-      {ok, Res, State}
+        <<"content_type">> => <<"text/html">>
+      }, <<"no such device">>, Req),
+      {ok, Res, State};
+    _ -> ninjatrace_logger:info(?MODULE, "Unknown Response")
   end.
 
 websocket_init(DeviceName) ->
@@ -42,7 +43,11 @@ websocket_info(Message, State) ->
   ninjatrace_logger:info(?MODULE, "received unknown message type ~p", [Message]),
   {noreply, State}.
 
-terminate(_Reason, Req, DeviceName) ->
-  io:format("websocket connection terminated~n~p~n", [maps:get(peer, Req)]),
+terminate(Reason, Req, []) ->
+  ninjatrace_logger:info(?MODULE, "websocket connection terminated - Reason: ~p ~p", [Reason, maps:get(peer, Req)]),
+  ok;
+
+terminate(Reason, Req, DeviceName) ->
+  ninjatrace_logger:info(?MODULE, "websocket connection terminated ~p", [Reason, maps:get(peer, Req)]),
   ninjatrace_device_server:unsubscribe(DeviceName, self()),
   ok.
